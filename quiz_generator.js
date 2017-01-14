@@ -5,7 +5,7 @@ var quiz_model=[
         section: "simple addition"
     },{
         text: "a + 1, sum < 20",
-        gen: add_1(0,20)
+        gen: add_1(1000,2000)
     },{
         text: "a + 1, sum < 100",
         gen: add_1(0,100)
@@ -161,14 +161,37 @@ function form_generate (div) {
             div.appendChild(elem);
         
         } else {
-            var elem = document.createElement("span");
-            elem.innerHTML = 
-                '<label for="'+i+'">'+item.text+' </label>'+
-                '<input type="range" value="0" min="0" max="20">'+
-                '<br>'
-            div.appendChild(elem);
+            (function () { 
+                var span = document.createElement("span");
+                span.innerHTML = '<label for="'+i+'">'+item.text+' </label>';
+
+                var ib = document.createElement("input");
+                ib.type  = 'number';
+                ib.value = ib.min = 0;
+
+                var ir = document.createElement("input");
+                ir.type = 'range';
+                ir.value = ir.min = 0; ir.max = 20;
+
+                span.appendChild(ib);
+                span.appendChild(ir);
+                span.appendChild(document.createElement("br"));
+                div.appendChild(span);
+
+                var n = i;
+                ib.oninput = function () { levels[n] = ir.value = ib.value; }
+                ir.oninput = function () { levels[n] = ib.value = ir.value; }  
+            })(); 
         }
     }
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.innerText = "Generate";
+    btn.onclick = function () {
+        window.open("./display.html?gen=["+levels+"]", "_blank").focus()
+    }
+    div.appendChild(btn);
 }
 
 
