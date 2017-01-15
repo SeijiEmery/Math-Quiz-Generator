@@ -107,31 +107,26 @@ function parseQuizMarkup (text) {
         }, fail);
     }
     function parseArg (text, success, fail) {
-        parseRegex(/^(?:([\[\(])\s*(\-?\d*)\s*,\s*(\-?\d*)\s*([\]\)])|(\w+)|([-\+]?\d+))\s*/, text,
-            //          ^ arg0     ^ arg1         ^ arg2     ^ arg3  ^arg0  ^arg0
+        parseRegex(/^(?:([\[\(])\s*(\-?\d*)\s*[,-]\s*(\-?\d*)\s*([\]\)])|(\w+)|([-\+]?\d+))\s*/, text,
+            //          ^ arg0     ^ arg1            ^ arg2     ^ arg3   ^arg4  ^arg5
             function (text, args) {
-                if (!args[0]) {
-                    console.log("RUNTIME ERROR -- args = "+args);
-                }
-
-
-                if (args[0] == '[' || args[0] == '(') {
+                // if (args[0] == '[' || args[0] == '(') {
+                if (args[0]) {
                     success(text, {
                         type: 'range',
                         min: (args[1] ? parseInt(args[1]) : NaN) + (args[0] == '('),
                         max: (args[2] ? parseInt(args[1]) : NaN) - (args[3] != ')'),
                     });
-                } else if (args[0] == args[0].toUpperCase()) {
+                } else if (args[5]) {
+                    success(text, { type: 'constant', value: parseInt(args[5]) })
+                } else if (args[4] == args[4].toUpperCase()) {
                     success(text, {
                         type: 'range',
                         min: 0,
-                        max: 10 * args[0].length,
+                        max: 10 * args[4].length,
                     });
                 } else {
-                    success(text, {
-                        type: 'var',
-                        name: args[0]
-                    });
+                    success(text, { type: 'var', value: args[4] });
                 }
             },
             fail);
@@ -141,7 +136,7 @@ function parseQuizMarkup (text) {
     function parseTermArg (text, success, fail) {
         parseArg(text, function (text, value) {
             if (text[0] == ':') { // Parse constraints
-                if (typeof value.constraints !== 'object')
+                if ((typeof value.constraints) !== 'object')
                     value.constraints = {};
 
                 (function parseConstraints (text) {
@@ -151,10 +146,21 @@ function parseQuizMarkup (text) {
                         value.constraints[args[0]] = true;
 
                         // Recurse or succeed (constraints may be comma delimited)
-                        if (text[0] != ',') success(text, value);
-                        else parseConstraints(text)
+                        if (text[0] != ',') 
+                            success(text.trimLeft(), value);
+                        else parseConstraints(text);
+                    
+                    }, function () {
+                        parseArg(text, function(text, value){
+                            value.bounds = value;
+
+                            if (text[0] != ',')
+                                success(text.trimLeft(), value);
+                            else parseConstraints(text);
+
+                        }, fail);
                     });
-                })(text);
+                })(text.slice(1));
                 
             } else {
                 success(text, value);
@@ -163,15 +169,19 @@ function parseQuizMarkup (text) {
     }
 
     function parseOpDirective (op, text) {
-        console.log("Parsing directive '"+op+"': '"+text+"'");
+        // console.log("Parsing directive '"+op+"': '"+text+"'");
 
         var result = { op: op };
+        // console.log("Parsing 1st arg: '"+text+"'")
         parseTermArg(text, function (text, value){
             result.a = value;
+            // console.log("Parsing 2nd arg: '"+text+"'")
             parseTermArg(text, function(text, value){
                 result.b = value;
                 if (text[0] == '=') {
-                    parseTermArg(text, function(text, value){
+                    // console.log("Parsing 3rd arg: '"+text+"'")
+                    parseTermArg(text.slice(1).trimLeft(), function(text, value){
+                        // console.log("3rd arg: "+value+", rem: '"+text+"'");
                         result.r = value;
                         maybeParseQty(text);
                     }, parseError("While parsing 3rd argument"));
@@ -179,8 +189,10 @@ function parseQuizMarkup (text) {
                     maybeParseQty(text);
                 }
                 function maybeParseQty (text) {
+                    // console.log("final: "+text);
                     if (text[0] == 'x') {
-                        result.qty = parseNumericRange(text);
+                        parseNumericRange(text.slice(1), function(value){ result.qty = value; },
+                            parseError("Expected range / quantity"));
                     } else if (text) {
                         console.log("Unparsed text: '"+text+"' "+
                             "(from line "+lineNum+", '"+lines[lineNum]+"')")
@@ -189,7 +201,27 @@ function parseQuizMarkup (text) {
             }, parseError("While parsing 2nd argument"));
         }, parseError("While parsing 1st argument"));
 
-        console.log("Parsed directive '"+op+"', got "+JSON.stringify(result));
+
+        function repr (x) {
+            switch (typeof x) {
+                case 'string': return x;
+                case 'number': return ''+x;
+                case 'object': if (x.type) switch (x.type) {
+                    case 'var':      return x.type+' '+x.value+'';
+                    case 'constant': return x.type+' '+x.value+'';
+                    case 'range':    return x.type+" ["+x.min+","+x.max+")";
+                }
+            }
+        }
+
+
+        console.log(repr(result.a)+" "+result.op+" "+repr(result.b)+
+            " = "+repr(result.r)+", qty = "+repr(result.qty))
+        // console.log("\n\t"+JSON.stringify(result.a))
+        // console.log("\n\t"+JSON.stringify(result.b))
+        // console.log("\n\t"+JSON.stringify(result.r));
+        // console.log('\n\t'+JSON.stringify(result))
+        // console.log("Parsed directive '"+op+"', got "+JSON.stringify(result));
     }
 
     function applySetting (key, value) {
