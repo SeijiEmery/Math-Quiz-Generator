@@ -29,11 +29,16 @@
         args[kv[0]] = decodeURIComponent(kv[1]);
     });
 
+    console.log("Loading '"+args.file+"'");
     loadFile(args.file, 
         function(text, url, req){
             console.log(text);
+            var data = parseQuizMarkup(text);
         }, function(url, req) {
             console.log("Could not load '"+url+"': "+req.status);
+            window.alert("Could not load '"+url+"': "+req.status);
+            // var parts = url.split("/");
+            // window.alert("Could not load file '"+parts[parts.length-1]+"'");
         });
 
 </script>
