@@ -107,26 +107,39 @@ function parseQuizMarkup (text) {
         }, fail);
     }
     function parseArg (text, success, fail) {
-        parseRegex(/^(?:([\[\(])\s*(\-?\d*)\s*[,-]\s*(\-?\d*)\s*([\]\)])|(\w+)|([-\+]?\d+))\s*/, text,
-            //          ^ arg0     ^ arg1            ^ arg2     ^ arg3   ^arg4  ^arg5
+        parseRegex(/^(?:([\[\(])\s*(\-?\d*)\s*[,-]\s*(\-?\d*)\s*([\]\)])|([-\+]?[0-9]+)|([+-]?[A-Z]+)|([a-z]\w*)|)\s*/, text,
+            //          ^ arg0     ^ arg1            ^ arg2     ^ arg3   ^ arg4          ^ arg5        ^ arg6
             function (text, args) {
                 // if (args[0] == '[' || args[0] == '(') {
                 if (args[0]) {
                     success(text, {
-                        type: 'range',
-                        min: (args[1] ? parseInt(args[1]) : NaN) + (args[0] == '('),
-                        max: (args[2] ? parseInt(args[1]) : NaN) - (args[3] != ')'),
+                        name: '',
+                        value: {
+                            min: (args[1] ? parseInt(args[1]) : NaN) + (args[0] == '('),
+                            max: (args[2] ? parseInt(args[2]) : NaN) + (args[3] != ')'),
+                        },
                     });
+                } else if (args[4]) {
+                    var x = parseInt(args[4]);
+                    success(text, { 
+                        name: '', 
+                        value: x
+                    })
                 } else if (args[5]) {
-                    success(text, { type: 'constant', value: parseInt(args[5]) })
-                } else if (args[4] == args[4].toUpperCase()) {
+                    var neg = args[5][0] == '-';
+                    if (neg || args[5][0] == '+') args[5] = args[5].slice(1);
                     success(text, {
-                        type: 'range',
-                        min: 0,
-                        max: 10 * args[4].length,
+                        name:'', 
+                        value: {
+                            min: neg ? -Math.pow(10, args[5].length) : 0,
+                            max: Math.pow(10, args[5].length)
+                        }
                     });
-                } else {
-                    success(text, { type: 'var', value: args[4] });
+                } else if (args[6]) {
+                    success(text, {
+                        name: args[6],
+                        value: undefined
+                    })
                 }
             },
             fail);
@@ -151,8 +164,8 @@ function parseQuizMarkup (text) {
                         else parseConstraints(text);
                     
                     }, function () {
-                        parseArg(text, function(text, value){
-                            value.bounds = value;
+                        parseArg(text, function(text, v){
+                            value.value = v.value;
 
                             if (text[0] != ',')
                                 success(text.trimLeft(), value);
@@ -206,10 +219,10 @@ function parseQuizMarkup (text) {
             switch (typeof x) {
                 case 'string': return x;
                 case 'number': return ''+x;
-                case 'object': if (x.type) switch (x.type) {
-                    case 'var':      return x.type+' '+x.value+'';
-                    case 'constant': return x.type+' '+x.value+'';
-                    case 'range':    return x.type+" ["+x.min+","+x.max+")";
+                case 'object': switch (typeof x.value) {
+                    case 'undefined': return x.name || '_';
+                    case 'number':    return ''+x.value;
+                    case 'object':    return (x.name ? x.name + ":" : '') + "["+x.value.min+","+x.value.max+")";  
                 }
             }
         }
