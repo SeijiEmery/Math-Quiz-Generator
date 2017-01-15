@@ -195,7 +195,8 @@ function display_generate (div, input) {
     // Generate HTML + add to page
     items.forEach(function(item){
         var elem = document.createElement("p");
-        elem.innerHTML = "<span>"+item.genMathML()+"</span><br>"
+        elem.innerHTML = '<math xmlns="http://www.w3.org/1998/Math/MathML">'+
+            item.genMathML()+'</math>'
         div.appendChild(elem);
     });
 }
