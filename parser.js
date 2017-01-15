@@ -12,7 +12,10 @@ function parseRegex (regex, text, success, fail) {
     }
 }
 
-
+function Range (min, max) {
+    this.min = min;
+    this.max = max;
+}
 
 function parseQuizMarkup (text) {
     var lines = text.split("\n").map(function(line){
@@ -21,7 +24,7 @@ function parseQuizMarkup (text) {
 
     // var indentLevel = [];
     // var prevIndent  = 0;
-    var lineNum = 0;
+    var lineNum = -1;
     lines.forEach(function(line){
         ++lineNum;
 
@@ -68,17 +71,17 @@ function parseQuizMarkup (text) {
                 beginLabel(line);
             }
         } else {
-            parseRegex(/(\w+)\s*/, line, parseTermExpr, parseError("Expected directive"));
+            parseRegex(/^(\w+)\s*/, line, parseTermExpr, parseError("Expected directive"));
         }
     });
     function parseError (msg) {
         return function (text, regex) {
-            console.log("ParseError (line"+lineNum+", offset"+lines[lineNum].indexOf(text)+"): "+msg+
+            console.log("ParseError (line "+lineNum+", offset "+lines[lineNum].indexOf(text)+"): "+msg+
                 "\n\t'"+text+"' did not match '"+regex+"'")
         }
     }
     function semanticError (msg, text) {
-        console.log("SemanticError (line"+lineNum+", offset"+lines[lineNum].indexOf(text)+"): "+msg+
+        console.log("SemanticError (line "+lineNum+", offset "+lines[lineNum].indexOf(text)+"): "+msg+
             "\n\t'"+text+"'")
     }
     function parseTermExpr (text, args) {
@@ -88,17 +91,105 @@ function parseQuizMarkup (text) {
             case "mul": parseOpDirective('*', text); break;
             case "div": parseOpDirective('/', text); break;
             case "ordered": applySetting('ordered', true); break;
-            case "total":   applySetting('constraint_total', parseNumericRange(text)); break;
+            case "total":   
+                parseNumericRange(text, 
+                    applySetting.bind(null, 'constraint_total'),
+                    // function (value) { applySetting('constraint_total', value); }, 
+                    parseError("Expected number / interval")); 
+                break;
             default: semanticError("Unsupported directive '"+args[0]+"'", text);
         }
     }
-    function parseNumericRange (text) {
-        return 1;
+    function parseNumericRange (text, success, fail) {
+        parseRegex(/^(\d+)(?:\s*[-,]\s*(\d+))?/, text, function(_, args) {
+            if (args[1]) success({ min: parseInt(args[0]), max: parseInt(args[1]) });
+            else         success(parseInt(args[0]));
+        }, fail);
+    }
+    function parseArg (text, success, fail) {
+        parseRegex(/^(?:([\[\(])\s*(\-?\d*)\s*,\s*(\-?\d*)\s*([\]\)])|(\w+)|([-\+]?\d+))\s*/, text,
+            //          ^ arg0     ^ arg1         ^ arg2     ^ arg3  ^arg0  ^arg0
+            function (text, args) {
+                if (!args[0]) {
+                    console.log("RUNTIME ERROR -- args = "+args);
+                }
+
+
+                if (args[0] == '[' || args[0] == '(') {
+                    success(text, {
+                        type: 'range',
+                        min: (args[1] ? parseInt(args[1]) : NaN) + (args[0] == '('),
+                        max: (args[2] ? parseInt(args[1]) : NaN) - (args[3] != ')'),
+                    });
+                } else if (args[0] == args[0].toUpperCase()) {
+                    success(text, {
+                        type: 'range',
+                        min: 0,
+                        max: 10 * args[0].length,
+                    });
+                } else {
+                    success(text, {
+                        type: 'var',
+                        name: args[0]
+                    });
+                }
+            },
+            fail);
     }
 
+    // We are _fully_ embracing deep recursion here xD
+    function parseTermArg (text, success, fail) {
+        parseArg(text, function (text, value) {
+            if (text[0] == ':') { // Parse constraints
+                if (typeof value.constraints !== 'object')
+                    value.constraints = {};
+
+                (function parseConstraints (text) {
+                    parseRegex(/^(odd|even|prime)/, text, function(text, args){
+
+                        // Set constraint (this gets used in the solver)
+                        value.constraints[args[0]] = true;
+
+                        // Recurse or succeed (constraints may be comma delimited)
+                        if (text[0] != ',') success(text, value);
+                        else parseConstraints(text)
+                    });
+                })(text);
+                
+            } else {
+                success(text, value);
+            }
+        }, fail);
+    }
 
     function parseOpDirective (op, text) {
         console.log("Parsing directive '"+op+"': '"+text+"'");
+
+        var result = { op: op };
+        parseTermArg(text, function (text, value){
+            result.a = value;
+            parseTermArg(text, function(text, value){
+                result.b = value;
+                if (text[0] == '=') {
+                    parseTermArg(text, function(text, value){
+                        result.r = value;
+                        maybeParseQty(text);
+                    }, parseError("While parsing 3rd argument"));
+                } else {
+                    maybeParseQty(text);
+                }
+                function maybeParseQty (text) {
+                    if (text[0] == 'x') {
+                        result.qty = parseNumericRange(text);
+                    } else if (text) {
+                        console.log("Unparsed text: '"+text+"' "+
+                            "(from line "+lineNum+", '"+lines[lineNum]+"')")
+                    }
+                }
+            }, parseError("While parsing 2nd argument"));
+        }, parseError("While parsing 1st argument"));
+
+        console.log("Parsed directive '"+op+"', got "+JSON.stringify(result));
     }
 
     function applySetting (key, value) {
