@@ -195,7 +195,7 @@ function display_generate (div, input) {
     // Generate HTML + add to page
     items.forEach(function(item){
         var elem = document.createElement("p");
-        elem.innerHTML = item.genMathML();
+        elem.innerHTML = "<span>"+item.genMathML()+"</span><br>"
         div.appendChild(elem);
     });
 }
