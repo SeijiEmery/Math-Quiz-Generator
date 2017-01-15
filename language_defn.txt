@@ -1,0 +1,26 @@
+#
+# The following is expressed using regexes and pseudo-BNF syntax.
+# Our DSL will have single-line comments "#", which extend to EOL.
+# There are no escape sequences (would add complexity + unnecessary).
+#
+
+line = [^\n#]+(?:#[^\n]+)?\n?
+line_expr  = (label) | (term)
+label = ([^ \t\n][^\n]+)
+         ^ label contents
+
+term = (op) (arg) (arg) (=> (arg))?
+
+op   = \s+(\w+)\s+
+           ^ operation (add | sub | mul | div)
+        ^ mandatory whitespace
+
+term_arg = (?:([\[\(])\s*(\-?\d*)\s*,\s*(\-?\d*)\s*([\]\)])|([a-bA-B]+)|(\d+))\s+
+               ^ incl     ^ min          ^ max      ^ incl | ^ digits  | ^ constant
+                                                             (symbolic)
+
+# Expanded syntax - maybe implement?
+
+arg = (term_arg):(arg_constraints)?
+arg_constraints = (arg_constraint) (,arg_constraints)?
+arg_constraint = (prime|etc)(\?)?

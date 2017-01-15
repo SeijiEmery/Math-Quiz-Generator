@@ -1,0 +1,10 @@
+
+Simple Addition (Kindergarten)
+    add [0,9] 0
+    add [0,9] 1
+    add [0,9] 2
+    add [0,9] 3
+
+2-Digit Addition (1st)
+    add [0,9] [0,9]
+    add [0,99] [0,9]
