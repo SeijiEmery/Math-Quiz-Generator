@@ -1,0 +1,40 @@
+<html>
+<head>
+<script src="parser.js" type="text/javascript"></script>
+</head>
+<body>
+
+<script type="text/javascript">
+    function loadFile (url, success, failure) {
+        var req = new XMLHttpRequest();
+        req.open('GET', url);
+        req.onreadystatechange = function () {
+            if (req.readyState === XMLHttpRequest.DONE) {
+                if (req.status == 200)
+                    success(req.responseText, url, req);
+                else
+                    failure(url, req);
+            }
+        }
+        req.send();
+    }
+    // Default args
+    var args = {
+        file: './datamodel.txt'
+    };
+    // Load GET variables (in url string)
+    location.search.substr(1).split('&').forEach(function(part){
+        var kv = part.split('=');
+        args[kv[0]] = decodeURIComponent(kv[1]);
+    });
+
+    loadFile(args.file, 
+        function(text, url, req){
+            console.log(text);
+        }, function(url, req) {
+            console.log("Could not load '"+url+"': "+req.status);
+        });
+
+</script>
+</body>
+</html>
